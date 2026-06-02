@@ -15,12 +15,13 @@ func NewRouter() http.Handler {
 	r.Use(chimiddleware.Logger)
 	r.Use(chimiddleware.Recoverer)
 
+	sh := handlers.NewStaticPageHandler()
+
 	r.Route("/api", func(r chi.Router) {
-		
+		r.Post("/static-page", sh.CreateOrUpdate)
 	})
 
-	h := handlers.NewStaticPageHandler()
-	r.Get("/*", h.Get)
+	r.Get("/*", sh.Get)
 
 	// API Routes
 

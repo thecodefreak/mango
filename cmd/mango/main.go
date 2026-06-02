@@ -1,1 +1,14 @@
-package mango
+package main
+
+import (
+	"os"
+
+	"github.com/thecodefreak/mango/cmd/mango/commands"
+)
+
+func main() {
+	err := commands.Execute()
+	if err != nil {
+		os.Exit(1)
+	}
+}

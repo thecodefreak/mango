@@ -4,13 +4,24 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/thecodefreak/mango/internal/config"
 )
+
+var cfg *config.Config
 
 var rootCmd = &cobra.Command{
 	Use:  "mango",
 	Short: "Multi swiss army knife for developers",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Welcome to Mango! Use --help to see available commands.")
+	},
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		var err error
+		cfg, err = config.Load()
+		if err != nil {
+			return fmt.Errorf("Unable to load config, %w", err)
+		}
+		return nil
 	},
 }
 

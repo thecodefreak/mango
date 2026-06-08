@@ -4,7 +4,11 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/thecodefreak/mango/internal/api"
 )
+
+var client = api.NewClient()
 
 type StaticPage struct {
 	Path string
@@ -46,6 +50,6 @@ func (s *StaticPage) Publish() error {
 }
 
 func UploadFiles() {
-	
+
 }
 

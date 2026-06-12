@@ -1,4 +1,4 @@
-/storage/*
+/storage/*/**
 !/storage/.gitkeep
 !/storage/static-pages/
 !/storage/static-pages/.gitkeep

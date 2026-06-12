@@ -17,7 +17,7 @@ Examples:
   RunE: func(cmd *cobra.Command, args []string) error {
 	path := args[0]
 	file := args[1]
-	staticPage := cli.NewStaticPage(path, file)
+	staticPage := cli.NewStaticPage(cfg, path, file)
 	return staticPage.Publish()
   },
 }

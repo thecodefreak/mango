@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -16,16 +17,15 @@ var storagePath = "storage/static-pages/"
 
 type StaticPageHandler struct{}
 
+type StaticPageContentFiles struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
+	Hash    string `json:"hash"`
+}
+
 type StaticPageContent struct {
-	PagePath string `json:"page_path"`
-	Files    []struct {
-		Path  string `json:"path"`
-		Files []struct {
-			Name    string `json:"name"`
-			Content string `json:"content"`
-			Hash    string `json:"hash"`
-		} `json:"files"`
-	} `json:"files"`
+	PagePath string                   `json:"page_path"`
+	Files    []StaticPageContentFiles `json:"files"`
 }
 
 func NewStaticPageHandler() *StaticPageHandler {
@@ -67,7 +67,7 @@ func (h *StaticPageHandler) CreateOrUpdate(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Invalid JSON body", http.StatusBadRequest)
 		return
 	}
-	
+
 	pageDir := storagePath + spc.PagePath
 	_, err := os.Stat(pageDir)
 	if os.IsNotExist(err) {
@@ -80,35 +80,35 @@ func (h *StaticPageHandler) CreateOrUpdate(w http.ResponseWriter, r *http.Reques
 
 	for _, item := range spc.Files {
 		itemPath := pageDir + "/" + item.Path
-		_, err := os.Stat(itemPath)
+		itemBasePath := filepath.Dir(itemPath)
+		_, err := os.Stat(itemBasePath)
 		if os.IsExist(err) && item.Path != "" {
 			os.Mkdir(item.Path, os.ModePerm)
 		}
 
-		for _, file := range item.Files {
-			filePath := itemPath + file.Name
-			if helpers.IsFileExist(filePath) {
-				hash, err := helpers.FileChecksum(filePath)
-				if err != nil {
-					http.Error(w, "Failed to calculate file checksum", http.StatusInternalServerError)
-					return
-				}
-				if hash == file.Hash {
-					continue
-				}
+		if helpers.IsFileExist(itemPath) {
+			hash, err := helpers.FileChecksum(itemPath)
+			if err != nil {
+				http.Error(w, "Failed to calculate file checksum", http.StatusInternalServerError)
+				return
 			}
+			if hash == item.Hash {
+				continue
+			}
+		}
 
-			decodedFile, err := base64.StdEncoding.DecodeString(file.Content)
-			if err != nil {
-				http.Error(w, "Failed to decode file content", http.StatusBadRequest)
-				return
-			}
-			err = os.WriteFile(filePath, []byte(decodedFile), os.ModePerm)
-			if err != nil {
-				http.Error(w, "Failed to create files", http.StatusInternalServerError)
-				fmt.Printf("Failed to write file %s: %v\n", filePath, err)
-				return
-			}
+		decodedFile, err := base64.StdEncoding.DecodeString(item.Content)
+		if err != nil {
+			http.Error(w, "Failed to decode file content", http.StatusBadRequest)
+			return
+		}
+
+		fmt.Printf("Writing file %s...\n", itemPath)
+		err = os.WriteFile(itemPath, []byte(decodedFile), os.ModePerm)
+		if err != nil {
+			http.Error(w, "Failed to create files", http.StatusInternalServerError)
+			fmt.Printf("Failed to write file %s: %v\n", itemPath, err)
+			return
 		}
 	}
 }

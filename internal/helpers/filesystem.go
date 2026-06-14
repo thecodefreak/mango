@@ -3,6 +3,7 @@ package helpers
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"os"
 )
@@ -25,6 +26,33 @@ func FileChecksum(path string) (string, error) {
 
 func IsFileExist(path string) bool {
 	_, err := os.Stat(path)
-	
-	return err != nil && os.IsExist(err)
+	return err == nil
+}
+
+func IsDirWritable(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("cannot access directory %q: %w", path, err)
+	}
+
+	if !info.IsDir() {
+		return fmt.Errorf("%q is not a directory", path)
+	}
+
+	f, err := os.CreateTemp(path, ".write-test-*")
+	if err != nil {
+		return fmt.Errorf("directory %q is not writable: %w", path, err)
+	}
+
+	name := f.Name()
+
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("failed to close temp file %q: %w", name, err)
+	}
+
+	if err := os.Remove(name); err != nil {
+		return fmt.Errorf("failed to remove temp file %q: %w", name, err)
+	}
+
+	return nil
 }

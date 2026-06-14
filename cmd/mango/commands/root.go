@@ -10,10 +10,10 @@ import (
 var cfg *config.Config
 
 var rootCmd = &cobra.Command{
-	Use:  "mango",
+	Use:   "mango",
 	Short: "Multi swiss army knife for developers",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Welcome to Mango! Use --help to see available commands.")
+		fmt.Print("Welcome to Mango 🥭! \n\nUse --help to see available commands.\n")
 	},
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		var err error
@@ -25,10 +25,7 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-var verbose bool
-   
 func init() {
-	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 

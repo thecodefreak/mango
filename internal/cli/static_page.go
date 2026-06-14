@@ -87,7 +87,7 @@ func (s *StaticPage) Publish() error {
 		})
 
 		if err != nil {
-			return fmt.Errorf("Failed to create or update static page: %s", err)
+			return fmt.Errorf("Failed to create or update static page. \n\n%w\n", err)
 		}
 
 		fmt.Printf("Successfully published static page at path: %s\n", s.Path)

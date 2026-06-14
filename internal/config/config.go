@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/viper"
+	"github.com/thecodefreak/mango/internal/helpers"
 )
 
 type Config struct {
@@ -19,33 +21,43 @@ type ServerConfig struct {
 	DocumentRoot string `mapstructure:"document_root"`
 }
 
-func initConfig(fileName string) (v *viper.Viper, confDir string, err error) {
+func InitConfig() *viper.Viper {
 	viper := viper.New()
-
-	homedir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, "", err
-	}
-
-	configDir := filepath.Join(homedir, ".mango")
-	if err := os.MkdirAll(configDir, 0755); err != nil && !os.IsExist(err) {
-		return nil, "", fmt.Errorf("Unable to create config directory: %s", configDir)
-	}
-
-	viper.AddConfigPath(configDir)
-	viper.SetConfigName(fileName)
 	viper.SetConfigType("yaml")
-
-	return viper, configDir, nil
+	return viper
 }
 
-func checkConfigFile(v *viper.Viper, cd string, fn string) error {
+func CreateConfig(v *viper.Viper, configFileName string) error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("Unable to get user home directory for config init")
+	}
+
+	configDir := filepath.Join(homeDir, ".mango")
+	configPath := filepath.Join(configDir, configFileName+".yaml")
+
+	if !helpers.IsFileExist(configDir) {
+		if err := os.MkdirAll(configDir, 0700); err != nil {
+			return fmt.Errorf("Unable to create config directory: %s", configDir)
+		}
+
+		err = v.SafeWriteConfigAs(configPath)
+		if err != nil {
+			return fmt.Errorf("Error creating config file: %s", err)
+		}
+
+		fmt.Printf("Config file successfully created at: %s", configPath)
+	}
+
+	v.SetConfigFile(configPath)
+
+	return nil
+}
+
+func readConfig(v *viper.Viper) error {
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			err := v.SafeWriteConfigAs(filepath.Join(cd, fn+".yaml"))
-			if err != nil {
-				return fmt.Errorf("Error creating config file: %s", err)
-			}
+			return nil
 		} else {
 			return fmt.Errorf("Error reading config file: %s", err)
 		}
@@ -54,18 +66,18 @@ func checkConfigFile(v *viper.Viper, cd string, fn string) error {
 }
 
 func Load() (*Config, error) {
-	v, configDir, err := initConfig("config")
-	if err != nil {
-		return nil, fmt.Errorf("Unable to initialise config, %w", err)
-	}
+	v := InitConfig()
 
 	v.SetDefault("server", "https://mango.example.com")
 	v.SetDefault("api_token", "api_token_here")
-
-	err = checkConfigFile(v, configDir, "config")
+	err := CreateConfig(v, "config")
 	if err != nil {
-		fmt.Printf("Error checking config file: %s", err)
-		return nil, err
+		return nil, fmt.Errorf("Config init failed: %w", err)
+	}
+
+	err = readConfig(v)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to read config: %w", err)
 	}
 
 	var cfg Config
@@ -79,24 +91,45 @@ func Load() (*Config, error) {
 }
 
 func LoadServerConf() (*ServerConfig, error) {
-	v, configDir, err := initConfig("server")
-	if err != nil {
-		return nil, fmt.Errorf("Unable to initialise config, %w", err)
-	}
-
-	userHome, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("Unable to get user home directory, %w", err)
-	}
+	v := InitConfig()
 
 	v.SetDefault("server_addr", ":3000")
 	v.SetDefault("server_token", "")
-	v.SetDefault("document_root", userHome+"/.mango/static_pages")
+	v.SetDefault("document_root", "")
+	v.SetEnvPrefix("MANGO")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
 
-	err = checkConfigFile(v, configDir, "server")
+	envConfFile := os.Getenv("MANGO_CONFIG_FILE")
+	if envConfFile != "" {
+		if !helpers.IsFileExist(envConfFile) {
+			return nil, fmt.Errorf("Config file %s does not exist", envConfFile)
+		}
+		v.SetConfigFile(envConfFile)
+	} else {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("Config init failed: %w", err)
+		}
+		v.SetConfigFile(homeDir)
+		v.SetConfigName("server")
+	}
+
+	keys := []string{
+		"server_addr",
+		"server_token",
+		"document_root",
+	}
+
+	for _, key := range keys {
+		if err := v.BindEnv(key); err != nil {
+			return nil, fmt.Errorf("failed to bind env %s: %w", key, err)
+		}
+	}
+
+	err := readConfig(v)
 	if err != nil {
-		fmt.Printf("Error checking config file: %s", err)
-		return nil, err
+		return nil, fmt.Errorf("Failed to read config: %w", err)
 	}
 
 	var serverCfg ServerConfig

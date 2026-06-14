@@ -1,0 +1,33 @@
+FROM golang:1.26.3-bookworm AS builder
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -trimpath \
+    -ldflags="-s -w" \
+    -o /out/mango-server \
+    ./cmd/mango-server
+
+
+# Runtime stage
+FROM alpine:latest
+
+RUN adduser -D -u 10001 -h /home/mango mango \
+    && mkdir -p /home/mango/.mango \
+    && mkdir -p /storage/static-pages \
+    && chown -R mango:mango /home/mango /storage
+
+ENV HOME=/home/mango
+
+COPY --from=builder /out/mango-server /usr/local/bin/mango-server
+
+USER mango
+
+EXPOSE 8080
+
+ENTRYPOINT ["mango-server"]

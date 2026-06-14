@@ -2,4 +2,6 @@
 !/storage/.gitkeep
 !/storage/static-pages/
 !/storage/static-pages/.gitkeep
+/build/*
+!/build/.gitkeep
 .env

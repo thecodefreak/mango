@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strings"
 
@@ -16,10 +17,10 @@ var ServerConfig = config.ServerConfig{}
 var rootCmd = &cobra.Command{
 	Use:   "mango-server",
 	Short: "Server for mango cli",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		config, err := config.LoadServerConf()
 		if err != nil {
-			fmt.Print(err)
+			return fmt.Errorf("Config load failed: %w", err)
 		}
 
 		if ServerConfig.Addr != "" {
@@ -32,29 +33,57 @@ var rootCmd = &cobra.Command{
 
 		err = validateAddrAndDocumentRoot(config)
 		if err != nil {
-			fmt.Printf("%s \n", err)
-			os.Exit(1)
+			return fmt.Errorf("Invalid Config: %w", err)
 		}
 
-		server.InitServer(config)
+		err = server.InitServer(config)
+		return err
 	},
 }
 
 func validateAddrAndDocumentRoot(c *config.ServerConfig) error {
-	if c.Addr != "" && !strings.Contains(c.Addr, ":") {
-		return fmt.Errorf("Invalid server address: %s. Must be in the format host:port", c.Addr)
+	if c == nil {
+		return fmt.Errorf("Config not loaded.")
 	}
-	if c.DocumentRoot != "" {
-		err := helpers.IsDirWritable(c.DocumentRoot)
-		if err != nil {
-			return fmt.Errorf("Document root is not writable: %s", c.DocumentRoot)
-		}
+
+	if strings.TrimSpace(c.Addr) == "" {
+		return fmt.Errorf("Server address is required")
 	}
+
+	if _, _, err := net.SplitHostPort(c.Addr); err != nil {
+		return fmt.Errorf("invalid server address %q, must be in host:port format: %w", c.Addr, err)
+	}
+
+	if strings.TrimSpace(c.DocumentRoot) == "" {
+		return fmt.Errorf("document root is required")
+	}
+
+	if err := helpers.IsDirWritable(c.DocumentRoot); err != nil {
+		return fmt.Errorf("document root is not writable %q: %w", c.DocumentRoot, err)
+	}
+
 	return nil
 }
 
+var initCmd = &cobra.Command{
+	Use:   "init",
+	Short: "Creates config file for mango-server",
+	RunE: func(c *cobra.Command, args []string) error {
+		v := config.InitConfig()
+		err := config.CreateConfig(v, "server")
+		if err != nil {
+			return fmt.Errorf("Config init failed: %w", err)
+		}
+		return nil
+	},
+}
+
 func main() {
-	rootCmd.Execute()
+	rootCmd.AddCommand(initCmd)
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }
 
 func init() {

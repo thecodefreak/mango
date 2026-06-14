@@ -29,7 +29,7 @@ type StaticPageContent struct {
 }
 
 func NewStaticPageHandler(p string) *StaticPageHandler {
-	storagePath = p
+	storagePath = filepath.Clean(p) + "/"
 	return &StaticPageHandler{}
 }
 
@@ -68,7 +68,6 @@ func (h *StaticPageHandler) CreateOrUpdate(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Invalid JSON body", http.StatusBadRequest)
 		return
 	}
-
 	pageDir := storagePath + spc.PagePath
 	_, err := os.Stat(pageDir)
 	if os.IsNotExist(err) {

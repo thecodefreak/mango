@@ -24,6 +24,7 @@ func ValidateToken(ExpectedToken string) func(http.Handler) http.Handler {
 
 			if token != ExpectedToken {
 				http.Error(w, "Invalid Token", http.StatusUnauthorized)
+				return
 			}
 
 			next.ServeHTTP(w, r)

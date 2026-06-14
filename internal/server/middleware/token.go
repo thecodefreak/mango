@@ -5,21 +5,21 @@ import (
 	"strings"
 )
 
-func ValidateToken(ExpectedToken string) func (http.Handler) http.Handler {
-	return func (next http.Handler) http.Handler {
-		return http.HandlerFunc(func (w http.ResponseWriter, r *http.Request) {
+func ValidateToken(ExpectedToken string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
 
 			if authHeader == "" {
 				http.Error(w, "Missing Authorization", http.StatusUnauthorized)
-				return 
+				return
 			}
 
 			token, ok := strings.CutPrefix(authHeader, "Bearer ")
 
 			if !ok || token == "" {
 				http.Error(w, "Missing Token Value", http.StatusUnauthorized)
-				return 
+				return
 			}
 
 			if token != ExpectedToken {

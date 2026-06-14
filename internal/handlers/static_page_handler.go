@@ -28,7 +28,8 @@ type StaticPageContent struct {
 	Files    []StaticPageContentFiles `json:"files"`
 }
 
-func NewStaticPageHandler() *StaticPageHandler {
+func NewStaticPageHandler(p string) *StaticPageHandler {
+	storagePath = p
 	return &StaticPageHandler{}
 }
 
@@ -79,11 +80,20 @@ func (h *StaticPageHandler) CreateOrUpdate(w http.ResponseWriter, r *http.Reques
 	}
 
 	for _, item := range spc.Files {
-		itemPath := pageDir + "/" + item.Path
+		itemPath := pageDir + "/"
+		if strings.HasPrefix(item.Path, "/") {
+			itemPath += item.Path[1:]
+		} else {
+			itemPath += item.Path
+		}
 		itemBasePath := filepath.Dir(itemPath)
-		_, err := os.Stat(itemBasePath)
-		if os.IsExist(err) && item.Path != "" {
-			os.Mkdir(item.Path, os.ModePerm)
+		if itemBasePath != "" && !helpers.IsFileExist(itemBasePath) {
+			fmt.Printf("Creating directory %s...\n", itemBasePath)
+			err = os.MkdirAll(itemBasePath, os.ModePerm)
+			if err != nil {
+				http.Error(w, "Failed to create directory for static page", http.StatusInternalServerError)
+				return
+			}
 		}
 
 		if helpers.IsFileExist(itemPath) {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 )
 
 func FileChecksum(path string) (string, error) {
@@ -55,4 +56,15 @@ func IsDirWritable(path string) error {
 	}
 
 	return nil
+}
+
+func PathWoSlash(path string, isPrefix bool) string {
+	if len(path) > 0 {
+		if isPrefix && !strings.HasSuffix(path, "/") {
+			path += "/"
+		} else if !isPrefix && strings.HasSuffix(path, "/") {
+			path = strings.TrimSuffix(path, "/")
+		}
+	}
+	return path
 }

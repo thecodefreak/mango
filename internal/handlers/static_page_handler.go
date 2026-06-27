@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -28,6 +27,21 @@ type StaticPageContent struct {
 	Files    []StaticPageContentFiles `json:"files"`
 }
 
+type StaticPageCheckFiles struct {
+	Path string `json:"path"`
+	Hash string `json:"hash"`
+}
+
+type StaticPageCheck struct {
+	PagePath string                 `json:"page_path"`
+	Files    []StaticPageCheckFiles `json:"files"`
+}
+
+type StaticPageRequired struct {
+	PagePath string   `json:"page_path"`
+	Files    []string `json:"files"`
+}
+
 func NewStaticPageHandler(p string) *StaticPageHandler {
 	storagePath = filepath.Clean(p) + "/"
 	return &StaticPageHandler{}
@@ -50,26 +64,21 @@ func (h *StaticPageHandler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *StaticPageHandler) CreateOrUpdate(w http.ResponseWriter, r *http.Request) {
-	ct := r.Header.Get("Content-Type")
-	if ct != "" {
-		mediaType := strings.ToLower(strings.TrimSpace(strings.Split(ct, ";")[0]))
-		if mediaType != "application/json" {
-			fmt.Printf("Unsupported Media Type: %s\n", mediaType)
-			http.Error(w, "Unsupported Media Type", http.StatusUnsupportedMediaType)
-			return
-		}
-	}
-
-	decodeBody := json.NewDecoder(r.Body)
-	decodeBody.DisallowUnknownFields()
-	var spc StaticPageContent
-
-	if err := decodeBody.Decode(&spc); err != nil {
-		http.Error(w, "Invalid JSON body", http.StatusBadRequest)
+	err := helpers.ValidateRequestMediaType(r, "application/json")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
 		return
 	}
+
+	var spc StaticPageContent
+	err = helpers.GetJsonBody(r, &spc)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	pageDir := storagePath + spc.PagePath
-	_, err := os.Stat(pageDir)
+	_, err = os.Stat(pageDir)
 	if os.IsNotExist(err) {
 		err = os.MkdirAll(pageDir, os.ModePerm)
 		if err != nil {
@@ -78,13 +87,9 @@ func (h *StaticPageHandler) CreateOrUpdate(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
+	basePath := pageDir + "/"
 	for _, item := range spc.Files {
-		itemPath := pageDir + "/"
-		if strings.HasPrefix(item.Path, "/") {
-			itemPath += item.Path[1:]
-		} else {
-			itemPath += item.Path
-		}
+		itemPath := basePath + helpers.PathWoSlash(item.Path, true)
 		itemBasePath := filepath.Dir(itemPath)
 		if itemBasePath != "" && !helpers.IsFileExist(itemBasePath) {
 			fmt.Printf("Creating directory %s...\n", itemBasePath)
@@ -120,4 +125,58 @@ func (h *StaticPageHandler) CreateOrUpdate(w http.ResponseWriter, r *http.Reques
 			return
 		}
 	}
+}
+
+func (h *StaticPageHandler) Check(w http.ResponseWriter, r *http.Request) {
+	err := helpers.ValidateRequestMediaType(r, "application/json")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
+		return
+	}
+
+	var spc StaticPageCheck
+	var spr StaticPageRequired
+	err = helpers.GetJsonBody(r, &spc)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	pagePath := storagePath + spc.PagePath
+	spr.PagePath = spc.PagePath
+
+	if !helpers.IsFileExist(pagePath) {
+		for _, item := range spc.Files {
+			spr.Files = append(spr.Files, item.Path)
+		}
+		helpers.JsonResponse(w, http.StatusOK, spr)
+		return
+	}
+
+	for _, item := range spc.Files {
+		itemPath := pagePath + "/" + helpers.PathWoSlash(item.Path, true)
+		itemBasePath := filepath.Dir(itemPath)
+
+		if !helpers.IsFileExist(itemBasePath) {
+			spr.Files = append(spr.Files, item.Path)
+			continue
+		}
+
+		if !helpers.IsFileExist(itemPath) {
+			spr.Files = append(spr.Files, item.Path)
+			continue
+		}
+
+		hash, err := helpers.FileChecksum(itemPath)
+		if err != nil {
+			http.Error(w, "Failed to calculate file checksum", http.StatusInternalServerError)
+			return
+		}
+
+		if hash != item.Hash {
+			spr.Files = append(spr.Files, item.Path)
+		}
+	}
+
+	helpers.JsonResponse(w, http.StatusOK, spr)
 }

@@ -20,6 +20,7 @@ func NewRouter(c *config.ServerConfig) http.Handler {
 
 	r.With(middleware.ValidateToken(c.ServerToken)).Route("/api", func(r chi.Router) {
 		r.Post("/static-page", sh.CreateOrUpdate)
+		r.Post("/static-page/check", sh.Check)
 	})
 
 	r.Get("/*", sh.Get)
